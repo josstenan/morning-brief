@@ -145,7 +145,7 @@ export default function App() {
               onMouseEnter={handleOnMouseEnter}
               onMouseLeave={handleOnMouseLeave}
             />
-            <Configurator />
+            {null}
           </>
         )}
         {layout === "vr" && <Configurator />}
@@ -168,7 +168,7 @@ export default function App() {
             onMouseEnter={handleOnMouseEnter}
             onMouseLeave={handleOnMouseLeave}
           />
-          <Configurator />
+          {null}
         </>
       )}
       {layout === "vr" && <Configurator />}
