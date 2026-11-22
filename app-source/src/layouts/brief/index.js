@@ -92,24 +92,49 @@ function BriefPage({ savedOnly }) {
     }
   };
 
-  useEffect(() => {
-    const base = `${process.env.PUBLIC_URL}/briefs`;
-    const getJson = (url) =>
-      fetch(url, { cache: "no-store" }).then((r) => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json();
+  const [days, setDays] = useState([]);
+  const [cache, setCache] = useState({});
+  const base = `${process.env.PUBLIC_URL}/briefs`;
+  const getJson = (url) =>
+    fetch(url, { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    });
+  const loadDays = (dates) => {
+    const missing = dates.filter((d) => !cache[d]);
+    if (!missing.length) return;
+    Promise.all(missing.map((d) => getJson(`${base}/days/${d}.json`).catch(() => null))).then((list) => {
+      setCache((prev) => {
+        const next = { ...prev };
+        list.forEach((b) => {
+          if (b && b.date) next[b.date] = b;
+        });
+        return next;
       });
+    });
+  };
+
+  useEffect(() => {
     getJson(`${base}/index.json`)
-      .then((index) => Promise.all((index.months || []).map((m) => getJson(`${base}/${m}.json`))))
-      .then((months) => {
-        const all = [];
-        months.forEach((m) => (m.briefs || []).forEach((b) => all.push(b)));
-        const list = all.sort((a, b) => (a.date < b.date ? 1 : -1));
-        setBriefs(list);
-        setDay(list.length ? list[0].date : null);
+      .then((index) => {
+        const list = index.days || [];
+        setDays(list);
+        if (list.length) setDay(list[0].date);
       })
       .catch(() => setError(true));
   }, []);
+
+  useEffect(() => {
+    if (day) loadDays([day]);
+  }, [day]);
+
+  useEffect(() => {
+    if ((q.trim() || savedOnly) && days.length) loadDays(days.map((d) => d.date));
+  }, [q, savedOnly, days]);
+
+  useEffect(() => {
+    setBriefs(Object.values(cache).sort((a, b) => (a.date < b.date ? 1 : -1)));
+  }, [cache]);
 
   const toggleSave = (id) => {
     const next = { ...saved };
@@ -123,7 +148,7 @@ function BriefPage({ savedOnly }) {
     }
   };
 
-  const brief = briefs.find((b) => b.date === day) || briefs[0];
+  const brief = cache[day] || null;
 
   const rows = useMemo(() => {
     const query = q.toLowerCase().trim();
@@ -177,7 +202,7 @@ function BriefPage({ savedOnly }) {
               {error
                 ? "Could not load the briefs. Check your connection and refresh."
                 : brief
-                ? `${brief.label} · ${briefs.length} ${briefs.length === 1 ? "brief" : "briefs"} saved`
+                ? `${brief.label} · ${days.length} ${days.length === 1 ? "brief" : "briefs"} in the archive`
                 : "Loading…"}
             </SoftTypography>
           </SoftBox>
@@ -192,7 +217,7 @@ function BriefPage({ savedOnly }) {
               inputProps={{ "aria-label": "Search all briefs" }}
             />
           </SoftBox>
-          {!savedOnly && briefs.length > 0 && (
+          {!savedOnly && days.length > 0 && (
             <SoftBox
               component="select"
               aria-label="Choose a day"
@@ -200,7 +225,7 @@ function BriefPage({ savedOnly }) {
               onChange={(e) => setDay(e.target.value)}
               sx={{ height: "2.5rem", borderRadius: "0.5rem", border: "1px solid #d2d6da", px: 1.5, fontSize: "0.875rem", background: "#fff", color: "#344767" }}
             >
-              {briefs.map((b) => (
+              {days.map((b) => (
                 <option key={b.date} value={b.date}>
                   {b.label}
                 </option>
@@ -272,7 +297,7 @@ function BriefPage({ savedOnly }) {
       <Grid container spacing={3}>
         {/* Items */}
         <Grid item xs={12} lg={8}>
-          {rows.length === 0 && briefs.length > 0 && (
+          {rows.length === 0 && (brief || savedOnly) && (
             <Card>
               <SoftBox p={3} textAlign="center">
                 <SoftTypography variant="body2" color="text">
